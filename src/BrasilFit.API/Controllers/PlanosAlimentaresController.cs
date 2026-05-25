@@ -16,27 +16,15 @@ public class PlanosAlimentaresController : ControllerBase
 
     public PlanosAlimentaresController(IPlanoAlimentarService service) => _service = service;
 
-    // ENDPOINT AUTENTICADO #2 - Criacao de Plano Alimentar (Role: Nutricionista).
+    // ENDPOINT AUTENTICADO #2 - Criacao de Plano Alimentar.
     [HttpPost]
     [ProducesResponseType(StatusCodes.Status201Created)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> Criar([FromBody] CriarPlanoAlimentarDto dto, CancellationToken ct)
     {
         var nutricionistaId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-
-        try
-        {
-            var id = await _service.CriarAsync(dto, nutricionistaId, ct);
-            return Created($"/api/planos-alimentares/{id}", new { id });
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            return StatusCode(StatusCodes.Status403Forbidden, new { mensagem = ex.Message });
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { mensagem = ex.Message });
-        }
+        var id = await _service.CriarAsync(dto, nutricionistaId, ct);
+        return Created($"/api/planos-alimentares/{id}", new { id });
     }
 }

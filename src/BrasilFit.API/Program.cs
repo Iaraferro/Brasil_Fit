@@ -1,4 +1,7 @@
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using BrasilFit.API.Middlewares;
 using BrasilFit.API.Services.Auth;
 using BrasilFit.API.Services.Avaliacoes;
 using BrasilFit.API.Services.Pacientes;
@@ -14,6 +17,8 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
+
+const string CorsFrontendPolicy = "FrontendCors";
 
 // =============================================================================
 // 1) EF Core + SQL Server
@@ -50,7 +55,37 @@ builder.Services
 builder.Services.AddAuthorization();
 
 // =============================================================================
-// 3) HttpClientFactory para APIs externas (ViaCEP e OpenFoodFacts)
+// 3) CORS - politica nomeada com origens vindas do appsettings.
+//    NUNCA usar AllowAnyOrigin + AllowCredentials em producao (e ilegal por spec).
+// =============================================================================
+var origensPermitidas = builder.Configuration
+    .GetSection("Cors:OrigensPermitidas")
+    .Get<string[]>() ?? Array.Empty<string>();
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy(CorsFrontendPolicy, policy =>
+    {
+        if (origensPermitidas.Length == 0)
+        {
+            // Fallback so para desenvolvimento local.
+            policy.SetIsOriginAllowed(_ => true)
+                  .AllowAnyHeader()
+                  .AllowAnyMethod();
+        }
+        else
+        {
+            policy.WithOrigins(origensPermitidas)
+                  .AllowAnyHeader()
+                  .AllowAnyMethod()
+                  .AllowCredentials() // necessario se o front for usar cookies/refresh token
+                  .WithExposedHeaders("Content-Disposition"); // libera headers extras se voce devolver downloads
+        }
+    });
+});
+
+// =============================================================================
+// 4) HttpClientFactory para APIs externas (ViaCEP e OpenFoodFacts)
 // =============================================================================
 builder.Services.AddHttpClient<IViaCepService, ViaCepService>(client =>
 {
@@ -69,7 +104,7 @@ builder.Services.AddHttpClient<IOpenFoodFactsService, OpenFoodFactsService>(clie
 });
 
 // =============================================================================
-// 4) Application Services + Repositorios
+// 5) Application Services + Repositorios
 // =============================================================================
 builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
 
@@ -80,7 +115,6 @@ builder.Services.AddScoped<IPacienteService, PacienteService>();
 builder.Services.AddScoped<IPlanoAlimentarService, PlanoAlimentarService>();
 builder.Services.AddScoped<IAvaliacaoService, AvaliacaoService>();
 
-// Seeder - registrado com o delegate de hashing apontando para o IPasswordHasher.
 builder.Services.AddScoped(sp => new DataSeeder(
     sp.GetRequiredService<AppDbContext>(),
     sp.GetRequiredService<IConfiguration>(),
@@ -88,9 +122,43 @@ builder.Services.AddScoped(sp => new DataSeeder(
     sp.GetRequiredService<IPasswordHasher>().Hash));
 
 // =============================================================================
-// 5) Controllers + Swagger
+// 6) ProblemDetails + Global Exception Handler (RFC 7807)
 // =============================================================================
-builder.Services.AddControllers();
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+builder.Services.AddProblemDetails(options =>
+{
+    // Enriquecimento padrao - acrescenta TraceId e o path em TODO ProblemDetails
+    // gerado pelo ASP.NET (inclusive 400 de model validation).
+    options.CustomizeProblemDetails = ctx =>
+    {
+        ctx.ProblemDetails.Extensions["traceId"] = ctx.HttpContext.TraceIdentifier;
+        ctx.ProblemDetails.Instance ??= ctx.HttpContext.Request.Path;
+    };
+});
+
+// =============================================================================
+// 7) Controllers + JSON + Swagger
+// =============================================================================
+builder.Services
+    .AddControllers()
+    .AddJsonOptions(options =>
+    {
+        // Evita StackOverflow quando o EF traz objetos com referencias circulares
+        // (ex.: Paciente -> Nutricionista -> Pacientes -> ...).
+        options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
+
+        // Padroniza nomes em camelCase (default do ASP.NET, mas deixo explicito).
+        options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+        options.JsonSerializerOptions.DictionaryKeyPolicy = JsonNamingPolicy.CamelCase;
+
+        // Enums viram string ("Nutricionista" no lugar de 2) - muito mais legivel
+        // no front e no Swagger.
+        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+
+        // Nao envia campos null no payload.
+        options.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+    });
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
@@ -101,7 +169,6 @@ builder.Services.AddSwaggerGen(options =>
         Description = "API de planejamento nutricional - Projeto Faculdade."
     });
 
-    // Botao Authorize do Swagger UI.
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Name = "Authorization",
@@ -124,15 +191,18 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
-// CORS minimo para desenvolvimento (qualquer origem).
-builder.Services.AddCors(opt =>
-    opt.AddDefaultPolicy(p => p.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));
-
 var app = builder.Build();
 
 // =============================================================================
-// 6) Pipeline
+// 8) Pipeline (ordem importa!)
 // =============================================================================
+
+// UseExceptionHandler PRIMEIRO - para capturar excecoes de qualquer middleware/abaixo.
+app.UseExceptionHandler();
+
+// StatusCodePages converte 401/403/404 sem body em ProblemDetails.
+app.UseStatusCodePages();
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -140,7 +210,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-app.UseCors();
+app.UseCors(CorsFrontendPolicy);
 
 app.UseAuthentication();
 app.UseAuthorization();
@@ -148,7 +218,7 @@ app.UseAuthorization();
 app.MapControllers();
 
 // =============================================================================
-// 7) Aplicar migrations e rodar o seeder na inicializacao
+// 9) Migrations + Seed na inicializacao
 // =============================================================================
 using (var scope = app.Services.CreateScope())
 {

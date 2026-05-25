@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using BrasilFit.API.DTOs.Common;
 using BrasilFit.API.DTOs.Pacientes;
 using BrasilFit.API.Services.Pacientes;
 using BrasilFit.Domain.Enums;
@@ -17,32 +18,30 @@ public class PacientesController : ControllerBase
     public PacientesController(IPacienteService pacienteService)
         => _pacienteService = pacienteService;
 
-    // ENDPOINT AUTENTICADO #1 - Cadastro de Paciente pelo Nutricionista (Role: Nutricionista).
+    // ENDPOINT AUTENTICADO #1 - Cadastro de Paciente pelo Nutricionista.
     [HttpPost]
     [ProducesResponseType(typeof(PacienteDto), StatusCodes.Status201Created)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> Cadastrar([FromBody] CriarPacienteDto dto, CancellationToken ct)
     {
         var nutricionistaId = ObterUsuarioId();
-        try
-        {
-            var paciente = await _pacienteService.CadastrarAsync(dto, nutricionistaId, ct);
-            return CreatedAtAction(nameof(ObterPorId), new { id = paciente.Id }, paciente);
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { mensagem = ex.Message });
-        }
+        // Excecoes sobem para o GlobalExceptionHandler - sem try/catch aqui.
+        var paciente = await _pacienteService.CadastrarAsync(dto, nutricionistaId, ct);
+        return CreatedAtAction(nameof(ObterPorId), new { id = paciente.Id }, paciente);
     }
 
+    // GET /api/pacientes?pagina=1&tamanhoPagina=20&busca=joao&ordenarPor=nome&decrescente=false&somenteAtivos=true
     [HttpGet]
-    [ProducesResponseType(typeof(IEnumerable<PacienteDto>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> Listar(CancellationToken ct)
+    [ProducesResponseType(typeof(PaginacaoResultadoDto<PacienteDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> Listar(
+        [FromQuery] PaginacaoQuery query,
+        [FromQuery] bool? somenteAtivos,
+        CancellationToken ct)
     {
         var nutricionistaId = ObterUsuarioId();
-        var pacientes = await _pacienteService.ListarPorNutricionistaAsync(nutricionistaId, ct);
-        return Ok(pacientes);
+        var resultado = await _pacienteService.ListarPorNutricionistaAsync(nutricionistaId, query, somenteAtivos, ct);
+        return Ok(resultado);
     }
 
     [HttpGet("{id:int}")]

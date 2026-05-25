@@ -1,4 +1,5 @@
 using BrasilFit.API.DTOs.Alimentos;
+using BrasilFit.API.DTOs.Common;
 using BrasilFit.Infrastructure.ExternalServices.OpenFoodFacts;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -27,21 +28,25 @@ public class AlimentosController : ControllerBase
         return Ok(Mapear(produto));
     }
 
-    // ENDPOINT PUBLICO #3b - Busca por nome no OpenFoodFacts.
+    // ENDPOINT PUBLICO #3b - Busca por nome no OpenFoodFacts (com paginacao padronizada).
+    // GET /api/alimentos/openfoodfacts/buscar?termo=arroz&pagina=1&tamanhoPagina=20
     [HttpGet("openfoodfacts/buscar")]
     [AllowAnonymous]
-    [ProducesResponseType(typeof(IEnumerable<AlimentoExternoDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(PaginacaoResultadoDto<AlimentoExternoDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> BuscarPorNome(
         [FromQuery] string termo,
-        [FromQuery] int pagina = 1,
-        [FromQuery] int tamanhoPagina = 20,
+        [FromQuery] PaginacaoQuery query,
         CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(termo))
-            return BadRequest(new { mensagem = "Informe um termo de busca." });
+            return BadRequest(new ProblemDetails { Title = "Parametro invalido.", Detail = "Informe o termo de busca.", Status = 400 });
 
-        var resultados = await _off.BuscarPorNomeAsync(termo, pagina, tamanhoPagina, ct);
-        return Ok(resultados.Select(Mapear));
+        var (produtos, total) = await _off.BuscarPorNomeAsync(termo, query.Pagina, query.TamanhoPagina, ct);
+
+        var itens = produtos.Select(Mapear).ToList();
+        var resultado = PaginacaoResultadoDto<AlimentoExternoDto>.Criar(itens, query.Pagina, query.TamanhoPagina, total);
+        return Ok(resultado);
     }
 
     private static AlimentoExternoDto Mapear(OffProduct p) => new()

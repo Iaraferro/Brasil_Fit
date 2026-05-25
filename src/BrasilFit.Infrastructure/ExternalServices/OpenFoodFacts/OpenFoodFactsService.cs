@@ -47,10 +47,11 @@ public class OpenFoodFactsService : IOpenFoodFactsService
         }
     }
 
-    public async Task<IReadOnlyList<OffProduct>> BuscarPorNomeAsync(string termo, int pagina = 1, int tamanhoPagina = 20, CancellationToken ct = default)
+    public async Task<(IReadOnlyList<OffProduct> Produtos, int Total)> BuscarPorNomeAsync(
+        string termo, int pagina = 1, int tamanhoPagina = 20, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(termo))
-            return Array.Empty<OffProduct>();
+            return (Array.Empty<OffProduct>(), 0);
 
         if (pagina < 1) pagina = 1;
         if (tamanhoPagina is < 1 or > 100) tamanhoPagina = 20;
@@ -65,7 +66,9 @@ public class OpenFoodFactsService : IOpenFoodFactsService
             response.EnsureSuccessStatusCode();
 
             var dados = await response.Content.ReadFromJsonAsync<OffSearchResponse>(cancellationToken: ct);
-            return (IReadOnlyList<OffProduct>?)dados?.Products ?? Array.Empty<OffProduct>();
+            if (dados is null) return (Array.Empty<OffProduct>(), 0);
+
+            return (dados.Products, dados.Count);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {

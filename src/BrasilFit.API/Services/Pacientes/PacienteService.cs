@@ -1,3 +1,4 @@
+using BrasilFit.API.DTOs.Common;
 using BrasilFit.API.DTOs.Pacientes;
 using BrasilFit.API.Services.Auth;
 using BrasilFit.Domain.Entities;
@@ -65,11 +66,45 @@ public class PacienteService : IPacienteService
         };
     }
 
-    public async Task<IReadOnlyList<PacienteDto>> ListarPorNutricionistaAsync(int nutricionistaId, CancellationToken ct = default)
+    public async Task<PaginacaoResultadoDto<PacienteDto>> ListarPorNutricionistaAsync(
+        int nutricionistaId,
+        PaginacaoQuery query,
+        bool? somenteAtivos,
+        CancellationToken ct = default)
     {
-        return await _context.Pacientes
+        // Comecamos com o IQueryable - o EF so executa a query no banco quando
+        // chamamos ToListAsync/CountAsync. Isso permite compor filtros sem trazer
+        // tudo para a memoria.
+        var consulta = _context.Pacientes
             .AsNoTracking()
-            .Where(p => p.NutricionistaId == nutricionistaId)
+            .Where(p => p.NutricionistaId == nutricionistaId);
+
+        if (somenteAtivos is not null)
+            consulta = consulta.Where(p => p.Ativo == somenteAtivos.Value);
+
+        if (!string.IsNullOrWhiteSpace(query.Busca))
+        {
+            var termo = query.Busca.Trim();
+            // SQL Server usa LIKE - EF traduz Contains para isso.
+            consulta = consulta.Where(p =>
+                EF.Functions.Like(p.Nome, $"%{termo}%") ||
+                EF.Functions.Like(p.Email, $"%{termo}%"));
+        }
+
+        consulta = (query.OrdenarPor?.ToLowerInvariant()) switch
+        {
+            "email"          => query.Decrescente ? consulta.OrderByDescending(p => p.Email)         : consulta.OrderBy(p => p.Email),
+            "datanascimento" => query.Decrescente ? consulta.OrderByDescending(p => p.DataNascimento): consulta.OrderBy(p => p.DataNascimento),
+            _                => query.Decrescente ? consulta.OrderByDescending(p => p.Nome)          : consulta.OrderBy(p => p.Nome)
+        };
+
+        // Count e a query paginada vao em duas idas ao banco. Para conjuntos pequenos
+        // o overhead e irrelevante; para listas gigantes vale considerar cache do total.
+        var total = await consulta.CountAsync(ct);
+
+        var itens = await consulta
+            .Skip((query.Pagina - 1) * query.TamanhoPagina)
+            .Take(query.TamanhoPagina)
             .Select(p => new PacienteDto
             {
                 Id = p.Id,
@@ -81,5 +116,7 @@ public class PacienteService : IPacienteService
                 Ativo = p.Ativo
             })
             .ToListAsync(ct);
+
+        return PaginacaoResultadoDto<PacienteDto>.Criar(itens, query.Pagina, query.TamanhoPagina, total);
     }
 }

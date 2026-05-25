@@ -16,27 +16,15 @@ public class AvaliacoesController : ControllerBase
 
     public AvaliacoesController(IAvaliacaoService service) => _service = service;
 
-    // ENDPOINT AUTENTICADO #3 - Registro de Avaliacao Antropometrica (Role: Nutricionista).
+    // ENDPOINT AUTENTICADO #3 - Registro de Avaliacao Antropometrica.
     [HttpPost]
     [ProducesResponseType(typeof(AvaliacaoResultadoDto), StatusCodes.Status201Created)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> Registrar([FromBody] CriarAvaliacaoDto dto, CancellationToken ct)
     {
         var nutricionistaId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-
-        try
-        {
-            var resultado = await _service.RegistrarAsync(dto, nutricionistaId, ct);
-            return Created($"/api/avaliacoes/{resultado.Id}", resultado);
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            return StatusCode(StatusCodes.Status403Forbidden, new { mensagem = ex.Message });
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { mensagem = ex.Message });
-        }
+        var resultado = await _service.RegistrarAsync(dto, nutricionistaId, ct);
+        return Created($"/api/avaliacoes/{resultado.Id}", resultado);
     }
 }
