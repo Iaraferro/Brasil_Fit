@@ -1,0 +1,20 @@
+## .NET / VS
+bin/
+obj/
+*.user
+*.suo
+.vs/
+.idea/
+.vscode/
+
+## Build output
+publish/
+*.dll
+*.pdb
+
+## SQL Server local files
+*.mdf
+*.ldf
+
+## Logs
+*.log
