@@ -9,4 +9,6 @@ public class AlimentoExternoDto
     public decimal? Carboidratos { get; set; }
     public decimal? Proteinas { get; set; }
     public decimal? Lipidios { get; set; }
+
+    public string? ImagemUrl { get; set; }
 }

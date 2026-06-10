@@ -27,6 +27,8 @@ public class OffProduct
     [JsonPropertyName("product_name_pt")] public string? ProductNamePt { get; set; }
     [JsonPropertyName("brands")]          public string? Brands { get; set; }
     [JsonPropertyName("nutriments")]      public OffNutriments? Nutriments { get; set; }
+
+    [JsonPropertyName("image_front_url")] public string? ImageFrontUrl { get; set; }
 }
 
 public class OffNutriments
@@ -37,3 +39,4 @@ public class OffNutriments
     [JsonPropertyName("proteins_100g")] public decimal? Proteins100g { get; set; }
     [JsonPropertyName("fat_100g")] public decimal? Fat100g { get; set; }
 }
+

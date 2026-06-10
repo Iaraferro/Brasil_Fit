@@ -8,6 +8,7 @@ namespace BrasilFit.Infrastructure.ExternalServices.OpenFoodFacts;
 // BaseAddress configurado no Program.cs - aqui usamos apenas paths relativos.
 public class OpenFoodFactsService : IOpenFoodFactsService
 {
+
     private readonly HttpClient _httpClient;
     private readonly ILogger<OpenFoodFactsService> _logger;
 
@@ -15,6 +16,14 @@ public class OpenFoodFactsService : IOpenFoodFactsService
     {
         _httpClient = httpClient;
         _logger = logger;
+
+        // 🔧 ADICIONAR O USER-AGENT (OBRIGATÓRIO pela API)
+        // O User-Agent será configurado no Program.cs, mas podemos garantir aqui
+        if (!_httpClient.DefaultRequestHeaders.Contains("User-Agent"))
+        {
+            _httpClient.DefaultRequestHeaders.Add("User-Agent", "BrasilFit - App de Nutrição - contato@brasilfit.com");
+        }
+        _httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
     }
 
     public async Task<OffProduct?> BuscarPorCodigoBarrasAsync(string codigoBarras, CancellationToken ct = default)
@@ -24,7 +33,7 @@ public class OpenFoodFactsService : IOpenFoodFactsService
 
         try
         {
-            // Endpoint: /api/v2/product/{barcode}.json
+            // Endpoint: /api/v2/product/{barcode}.json (v2 funciona melhor)
             var response = await _httpClient.GetAsync($"api/v2/product/{Uri.EscapeDataString(codigoBarras)}.json", ct);
 
             if (response.StatusCode == HttpStatusCode.NotFound)
@@ -43,7 +52,8 @@ public class OpenFoodFactsService : IOpenFoodFactsService
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
             _logger.LogError(ex, "Falha ao consultar OpenFoodFacts por codigo de barras {Codigo}.", codigoBarras);
-            throw;
+            // Em vez de lançar exceção, retornar null para não quebrar a API
+            return null;
         }
     }
 
@@ -73,7 +83,8 @@ public class OpenFoodFactsService : IOpenFoodFactsService
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
             _logger.LogError(ex, "Falha ao buscar produtos no OpenFoodFacts pelo termo {Termo}.", termo);
-            throw;
+            // Em vez de lançar exceção, retornar lista vazia
+            return (Array.Empty<OffProduct>(), 0);
         }
     }
 }

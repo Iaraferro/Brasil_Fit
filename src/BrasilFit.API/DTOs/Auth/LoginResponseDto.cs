@@ -6,4 +6,5 @@ public class LoginResponseDto
     public DateTime ExpiraEm { get; set; }
     public string Nome { get; set; } = string.Empty;
     public string Papel { get; set; } = string.Empty;
+    public int Id { get; set; }
 }

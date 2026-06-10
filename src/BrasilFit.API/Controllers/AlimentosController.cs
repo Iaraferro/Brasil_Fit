@@ -1,8 +1,11 @@
 using BrasilFit.API.DTOs.Alimentos;
 using BrasilFit.API.DTOs.Common;
+using BrasilFit.Domain.Entities;
+using BrasilFit.Infrastructure.Data;
 using BrasilFit.Infrastructure.ExternalServices.OpenFoodFacts;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace BrasilFit.API.Controllers;
 
@@ -11,8 +14,13 @@ namespace BrasilFit.API.Controllers;
 public class AlimentosController : ControllerBase
 {
     private readonly IOpenFoodFactsService _off;
+    private readonly AppDbContext _context;
 
-    public AlimentosController(IOpenFoodFactsService off) => _off = off;
+    public AlimentosController(IOpenFoodFactsService off, AppDbContext context)
+    {
+        _off = off;
+        _context = context;
+    }
 
     // ENDPOINT PUBLICO #3a - Busca por codigo de barras no OpenFoodFacts.
     [HttpGet("openfoodfacts/codigo/{codigoBarras}")]
@@ -57,6 +65,33 @@ public class AlimentosController : ControllerBase
         Kcal = p.Nutriments?.EnergyKcal100g,
         Carboidratos = p.Nutriments?.Carbohydrates100g,
         Proteinas = p.Nutriments?.Proteins100g,
-        Lipidios = p.Nutriments?.Fat100g
+        Lipidios = p.Nutriments?.Fat100g,
+        ImagemUrl = p.ImageFrontUrl
     };
+
+    [HttpPost("importar")]
+    [Authorize]
+    public async Task<IActionResult> Importar([FromBody] ImportarAlimentoDTO dto, CancellationToken ct)
+    {
+        var alimento = await _context.Alimentos
+            .FirstOrDefaultAsync(a => a.CodigoBarrasExterno == dto.CodigoBarras, ct);
+
+        if (alimento is null)
+        {
+            alimento = new Alimento
+            {
+                Nome = dto.Nome,
+                Marca = dto.Marca,
+                Kcal = dto.Kcal,
+                Carboidratos = dto.Carboidratos,
+                Proteinas = dto.Proteinas,
+                Lipidios = dto.Lipidios,
+                CodigoBarrasExterno = dto.CodigoBarras
+            };
+            _context.Alimentos.Add(alimento);
+            await _context.SaveChangesAsync(ct);
+        }
+
+        return Ok(new { id = alimento.Id });
+    }
 }

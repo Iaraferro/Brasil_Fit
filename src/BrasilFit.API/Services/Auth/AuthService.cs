@@ -33,7 +33,8 @@ public class AuthService : IAuthService
             Token = token,
             ExpiraEm = expiraEm,
             Nome = usuario.Nome,
-            Papel = usuario.Papel.ToString()
+            Papel = usuario.Papel.ToString(),
+            Id = usuario.Id
         };
     }
 }
