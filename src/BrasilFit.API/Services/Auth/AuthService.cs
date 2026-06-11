@@ -1,4 +1,5 @@
 using BrasilFit.API.DTOs.Auth;
+using BrasilFit.Domain.Entities;
 using BrasilFit.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -30,11 +31,13 @@ public class AuthService : IAuthService
 
         return new LoginResponseDto
         {
-            Token = token,
+            Token    = token,
             ExpiraEm = expiraEm,
-            Nome = usuario.Nome,
-            Papel = usuario.Papel.ToString(),
-            Id = usuario.Id
+            Nome     = usuario.Nome,
+            Email    = usuario.Email,
+            Papel    = usuario.Papel.ToString(),
+            Id       = usuario.Id,
+            Crn      = usuario is Nutricionista n ? n.Crn : null
         };
     }
 }

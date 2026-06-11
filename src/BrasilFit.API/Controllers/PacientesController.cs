@@ -49,9 +49,16 @@ public class PacientesController : ControllerBase
         [FromQuery] bool? somenteAtivos,
         CancellationToken ct)
     {
+        // Administrador enxerga todos os pacientes; nutricionista vê apenas os seus.
+        if (User.IsInRole(nameof(PapelUsuario.Administrador)))
+        {
+            var resultado = await _pacienteService.ListarTodosAsync(query, somenteAtivos, ct);
+            return Ok(resultado);
+        }
+
         var nutricionistaId = ObterUsuarioId();
-        var resultado = await _pacienteService.ListarPorNutricionistaAsync(nutricionistaId, query, somenteAtivos, ct);
-        return Ok(resultado);
+        var resultadoNutri = await _pacienteService.ListarPorNutricionistaAsync(nutricionistaId, query, somenteAtivos, ct);
+        return Ok(resultadoNutri);
     }
 
 

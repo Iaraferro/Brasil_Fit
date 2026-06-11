@@ -24,15 +24,17 @@ public class UsuariosController : ControllerBase
     [HttpGet("nutricionistas")]
     public async Task<IActionResult> ListarNutricionistas()
     {
-        var nutricionistas = await _context.Usuarios
-            .Where(u => u.Papel == PapelUsuario.Nutricionista)
-            .Select(u => new
+        var nutricionistas = await _context.Nutricionistas
+            .Select(n => new
             {
-                u.Id,
-                u.Nome,
-                u.Email,
-                u.Ativo,
-                CriadoEm = u.CriadoEm.ToString("yyyy-MM-dd")
+                n.Id,
+                n.Nome,
+                n.Email,
+                n.Ativo,
+                n.Crn,
+                n.Especialidade,
+                CriadoEm = n.CriadoEm.ToString("yyyy-MM-dd"),
+                TotalPacientes = n.Pacientes.Count
             })
             .ToListAsync();
 

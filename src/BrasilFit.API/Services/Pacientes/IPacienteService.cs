@@ -12,4 +12,9 @@ public interface IPacienteService
         PaginacaoQuery query,
         bool? somenteAtivos,
         CancellationToken ct = default);
+
+    Task<PaginacaoResultadoDto<PacienteDto>> ListarTodosAsync(
+        PaginacaoQuery query,
+        bool? somenteAtivos,
+        CancellationToken ct = default);
 }

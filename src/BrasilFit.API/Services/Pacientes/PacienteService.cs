@@ -119,4 +119,47 @@ public class PacienteService : IPacienteService
 
         return PaginacaoResultadoDto<PacienteDto>.Criar(itens, query.Pagina, query.TamanhoPagina, total);
     }
+
+    public async Task<PaginacaoResultadoDto<PacienteDto>> ListarTodosAsync(
+        PaginacaoQuery query,
+        bool? somenteAtivos,
+        CancellationToken ct = default)
+    {
+        var consulta = _context.Pacientes.AsNoTracking();
+
+        if (somenteAtivos is not null)
+            consulta = consulta.Where(p => p.Ativo == somenteAtivos.Value);
+
+        if (!string.IsNullOrWhiteSpace(query.Busca))
+        {
+            var termo = query.Busca.Trim();
+            consulta = consulta.Where(p =>
+                EF.Functions.Like(p.Nome, $"%{termo}%") ||
+                EF.Functions.Like(p.Email, $"%{termo}%"));
+        }
+
+        consulta = (query.OrdenarPor?.ToLowerInvariant()) switch
+        {
+            "email" => query.Decrescente ? consulta.OrderByDescending(p => p.Email) : consulta.OrderBy(p => p.Email),
+            _       => query.Decrescente ? consulta.OrderByDescending(p => p.Nome)  : consulta.OrderBy(p => p.Nome)
+        };
+
+        var total = await consulta.CountAsync(ct);
+        var itens = await consulta
+            .Skip((query.Pagina - 1) * query.TamanhoPagina)
+            .Take(query.TamanhoPagina)
+            .Select(p => new PacienteDto
+            {
+                Id = p.Id,
+                Nome = p.Nome,
+                Email = p.Email,
+                DataNascimento = p.DataNascimento,
+                Sexo = p.Sexo,
+                Telefone = p.Telefone,
+                Ativo = p.Ativo
+            })
+            .ToListAsync(ct);
+
+        return PaginacaoResultadoDto<PacienteDto>.Criar(itens, query.Pagina, query.TamanhoPagina, total);
+    }
 }
