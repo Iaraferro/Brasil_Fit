@@ -9,6 +9,7 @@ using BrasilFit.API.Services.PlanosAlimentares;
 using BrasilFit.Infrastructure.Data;
 using BrasilFit.Infrastructure.Data.Seeders;
 using BrasilFit.Infrastructure.ExternalServices.OpenFoodFacts;
+using BrasilFit.Infrastructure.ExternalServices.Taco;
 using BrasilFit.Infrastructure.ExternalServices.ViaCep;
 using BrasilFit.Infrastructure.Repositories;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -101,6 +102,14 @@ builder.Services.AddHttpClient<IOpenFoodFactsService, OpenFoodFactsService>(clie
         ?? "https://world.openfoodfacts.org/");
     client.Timeout = TimeSpan.FromSeconds(15);
     client.DefaultRequestHeaders.UserAgent.ParseAdd("BrasilFit-API/1.0 (contato@brasilfit.local)");
+});
+
+builder.Services.AddHttpClient<ITacoService, TacoService>(client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["ExternalApis:Taco:BaseUrl"]
+        ?? "https://taco-food-api.vercel.app/api/");
+    client.Timeout = TimeSpan.FromSeconds(10);
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("BrasilFit-API/1.0");
 });
 
 // =============================================================================
@@ -203,13 +212,15 @@ app.UseExceptionHandler();
 // StatusCodePages converte 401/403/404 sem body em ProblemDetails.
 app.UseStatusCodePages();
 
+// Swagger disponivel em desenvolvimento e tambem em producao (para demonstracao).
+app.UseSwagger();
+app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "BrasilFit API v1"));
+
+// HTTPS redirect apenas em desenvolvimento local; Azure gerencia SSL na camada de proxy.
 if (app.Environment.IsDevelopment())
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseHttpsRedirection();
 }
-
-app.UseHttpsRedirection();
 app.UseCors(CorsFrontendPolicy);
 
 app.UseAuthentication();

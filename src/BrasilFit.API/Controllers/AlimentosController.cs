@@ -3,6 +3,7 @@ using BrasilFit.API.DTOs.Common;
 using BrasilFit.Domain.Entities;
 using BrasilFit.Infrastructure.Data;
 using BrasilFit.Infrastructure.ExternalServices.OpenFoodFacts;
+using BrasilFit.Infrastructure.ExternalServices.Taco;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -14,11 +15,13 @@ namespace BrasilFit.API.Controllers;
 public class AlimentosController : ControllerBase
 {
     private readonly IOpenFoodFactsService _off;
+    private readonly ITacoService _taco;
     private readonly AppDbContext _context;
 
-    public AlimentosController(IOpenFoodFactsService off, AppDbContext context)
+    public AlimentosController(IOpenFoodFactsService off, ITacoService taco, AppDbContext context)
     {
         _off = off;
+        _taco = taco;
         _context = context;
     }
 
@@ -68,6 +71,30 @@ public class AlimentosController : ControllerBase
         Lipidios = p.Nutriments?.Fat100g,
         ImagemUrl = p.ImageFrontUrl
     };
+
+    // ENDPOINT #4 - Busca por nome na Tabela TACO (UNICAMP) — alimentos brasileiros.
+    // GET /api/alimentos/taco/buscar?termo=arroz
+    [HttpGet("taco/buscar")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(IReadOnlyList<TacoAlimentoDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> BuscarTaco([FromQuery] string termo, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(termo))
+            return BadRequest(new ProblemDetails { Title = "Parametro invalido.", Detail = "Informe o termo de busca.", Status = 400 });
+
+        var alimentos = await _taco.BuscarPorNomeAsync(termo, ct);
+        return Ok(alimentos.Select(a => new TacoAlimentoDto
+        {
+            Id           = a.Id,
+            Nome         = a.Nome,
+            Kcal         = a.Kcal,
+            Proteinas    = a.Proteinas,
+            Carboidratos = a.Carboidratos,
+            Lipidios     = a.Lipidios,
+            Fibras       = a.FibrasDieteticas,
+            Categoria    = a.Categoria?.Nome
+        }));
+    }
 
     [HttpPost("importar")]
     [Authorize]
